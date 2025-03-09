@@ -172,7 +172,7 @@ func (t *TaskExecution) Execute() error {
 		if t.Status == ExecStatusWarning {
 			t.SetProgress("execution succeeded (with warnings)")
 		} else {
-			t.SetProgress("execution succeeded")
+			t.SetProgress("execution succeeded 1")
 			t.Status = ExecStatusSuccess
 		}
 	} else {

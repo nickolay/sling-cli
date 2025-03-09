@@ -354,7 +354,6 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 	quoteRep := `$~q$~`
 	newlRep := `$~n$~`
 	carrRep := `$~r$~`
-	emptyRep := `$~e$~`
 	postUpdateCol := map[int]uint64{}
 
 	// transformation to correctly post process quotes, newlines, and delimiter afterwards
@@ -367,25 +366,27 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 
 			switch v := val.(type) {
 			case string:
-				nRow[i] = strings.ReplaceAll(
-					val.(string), columnTerminator, delimiterRep,
-				)
-				nRow[i] = strings.ReplaceAll(
-					nRow[i].(string), `"`, quoteRep,
-				)
-				nRow[i] = strings.ReplaceAll(
-					nRow[i].(string), "\r", carrRep,
-				)
-				nRow[i] = strings.ReplaceAll(
-					nRow[i].(string), "\n", newlRep,
-				)
-				// bcp treats empty space as null
+				// bcp loads empty string as NULL and a NUL char as an empty string.
+				// https://stackoverflow.com/questions/1644731
 				if !ds.Sp.Config.EmptyAsNull && v == "" {
-					nRow[i] = emptyRep
-				}
-				if nRow[i].(string) != val.(string) {
-					panic(fmt.Sprintf("will not run update (col=%d)", i))
-					postUpdateCol[i]++
+					nRow[i] = "\x00"
+				} else {
+					nRow[i] = strings.ReplaceAll(
+						val.(string), columnTerminator, delimiterRep,
+					)
+					nRow[i] = strings.ReplaceAll(
+						nRow[i].(string), `"`, quoteRep,
+					)
+					nRow[i] = strings.ReplaceAll(
+						nRow[i].(string), "\r", carrRep,
+					)
+					nRow[i] = strings.ReplaceAll(
+						nRow[i].(string), "\n", newlRep,
+					)
+					if nRow[i].(string) != val.(string) {
+						panic(fmt.Sprintf("will not run update (col=%d)", i))
+						postUpdateCol[i]++
+					}
 				}
 			default:
 				_ = v
@@ -479,20 +480,20 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 				"placeholder", newlRep,
 				"newVal", `CHAR(10)`,
 			)
-			replExpr5 := g.R(
-				`REPLACE({replExpr}, '{placeholder}', {newVal})`,
-				"replExpr", replExpr4,
-				"placeholder", emptyRep,
-				"newVal", `''`,
-			)
+			// replExpr5 := g.R(
+			// 	`REPLACE({replExpr}, '{placeholder}', {newVal})`,
+			// 	"replExpr", replExpr4,
+			// 	"placeholder", emptyRep,
+			// 	"newVal", `''`,
+			// )
 			setCols = append(
-				setCols, fmt.Sprintf(`%s = %s`, col.Name, replExpr5),
+				setCols, fmt.Sprintf(`%s = %s`, col.Name, replExpr4),
 			)
 		}
 
 		// do update statement if needed
 		if len(setCols) > 0 {
-			g.Debug("running post-processing UPDATE")
+			g.Debug("running post-processing UPDATEv2")
 			setColsStr := strings.Join(setCols, ", ")
 			sql := fmt.Sprintf(`UPDATE %s SET %s`, tableFName, setColsStr) + noDebugKey
 			_, err = conn.Exec(sql)
