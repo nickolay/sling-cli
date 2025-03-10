@@ -403,7 +403,12 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 		defer ds.Context.Wg.Write.Done()
 
 		// delete csv
-		defer func() { env.RemoveLocalTempFile(filePath) }()//
+		defer func() { 
+			if cast.ToBool(os.Getenv("SLING_KEEP_TEMP")) {
+				return
+			}
+			env.RemoveLocalTempFile(filePath) 
+		}()//
 
 		_, err := conn.BcpImportFile(tableFName, filePath)
 		ds.Context.CaptureErr(err)
@@ -569,7 +574,9 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	errPath := "/dev/stderr"
 	if runtime.GOOS == "windows" || true {
 		errPath = path.Join(env.GetTempFolder(), g.NewTsID(g.F("sqlserver.%s", env.CleanTableName(tableFName)))+".error")
-		defer os.Remove(errPath)//
+		if !cast.ToBool(os.Getenv("SLING_KEEP_TEMP")) {
+			defer os.Remove(errPath)//
+		}
 	}
 
 	bcpArgs := []string{
