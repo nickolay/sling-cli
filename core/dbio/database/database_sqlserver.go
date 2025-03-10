@@ -28,6 +28,15 @@ import (
 	"github.com/xo/dburl"
 )
 
+
+// var columnTerminator = os.Getenv("TEST_CT")
+// var columnTerminatorForBcp = os.Getenv("TEST_CTBCP")
+// var columnTerminatorForSql = os.Getenv("TEST_CTSQL")
+
+var columnTerminator = "\x01"
+var columnTerminatorForBcp = "0x01"
+var columnTerminatorForSql = "1/0"
+
 // MsSQLServerConn is a Microsoft SQL Server connection
 type MsSQLServerConn struct {
 	BaseConn
@@ -359,7 +368,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 			switch v := val.(type) {
 			case string:
 				nRow[i] = strings.ReplaceAll(
-					val.(string), ",", delimiterRep,
+					val.(string), columnTerminator, delimiterRep,
 				)
 				nRow[i] = strings.ReplaceAll(
 					nRow[i].(string), `"`, quoteRep,
@@ -375,6 +384,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 					nRow[i] = emptyRep
 				}
 				if nRow[i].(string) != val.(string) {
+					panic(fmt.Sprintf("will not run update (col=%d)", i))
 					postUpdateCol[i]++
 				}
 			default:
@@ -388,7 +398,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 		defer ds.Context.Wg.Write.Done()
 
 		// delete csv
-		defer func() { env.RemoveLocalTempFile(filePath) }()
+		defer func() { env.RemoveLocalTempFile(filePath) }()//
 
 		_, err := conn.BcpImportFile(tableFName, filePath)
 		ds.Context.CaptureErr(err)
@@ -446,10 +456,10 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 			}
 
 			replExpr1 := g.R(
-				`REPLACE(CONVERT(VARCHAR(MAX), {field}), '{delimiterRep}', '{delimiter}')`,
+				`REPLACE(CONVERT(NVARCHAR(MAX), {field}), '{delimiterRep}', {columnTerminatorForSql})`,
 				"field", col.Name,
 				"delimiterRep", delimiterRep,
-				"delimiter", ",",
+				"columnTerminatorForSql", columnTerminatorForSql,
 			)
 			replExpr2 := g.R(
 				`REPLACE({replExpr}, '{quoteRep}', '{quote}')`,
@@ -482,6 +492,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 
 		// do update statement if needed
 		if len(setCols) > 0 {
+			g.Debug("running post-processing UPDATE")
 			setColsStr := strings.Join(setCols, ", ")
 			sql := fmt.Sprintf(`UPDATE %s SET %s`, tableFName, setColsStr) + noDebugKey
 			_, err = conn.Exec(sql)
@@ -553,7 +564,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 	errPath := "/dev/stderr"
 	if runtime.GOOS == "windows" || true {
 		errPath = path.Join(env.GetTempFolder(), g.NewTsID(g.F("sqlserver.%s", env.CleanTableName(tableFName)))+".error")
-		defer os.Remove(errPath)
+		defer os.Remove(errPath)//
 	}
 
 	bcpArgs := []string{
@@ -561,7 +572,8 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 		"in", filePath,
 		"-S", hostPort,
 		"-d", database,
-		"-t", ",",
+		// "-t" + columnTerminatorForBcp,
+		"-t", columnTerminatorForBcp,
 		"-m", "1",
 		"-w",
 		"-q",
@@ -863,7 +875,7 @@ func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64
 	}
 
 	// Write header
-	_, err = writer.Write([]byte(strings.Join(fields, ",") + newLine))
+	_, err = writer.Write([]byte(strings.Join(fields, columnTerminator) + newLine))
 	if err != nil {
 		return cnt, g.Error(err, "could not write header to file")
 	}
@@ -880,7 +892,7 @@ func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64
 		}
 
 		// Write row
-		_, err = writer.Write([]byte(strings.Join(row, ",") + newLine))
+		_, err = writer.Write([]byte(strings.Join(row, columnTerminator) + newLine))
 		if err != nil {
 			return cnt, g.Error(err, "could not write row to file")
 		}
