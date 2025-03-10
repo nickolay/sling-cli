@@ -37,6 +37,10 @@ var columnTerminator = "\x01"
 var columnTerminatorForBcp = "0x01"
 var columnTerminatorForSql = "1/0"
 
+
+var rowTerminator = "\x02"
+var rowTerminatorForBcp = "0x02"
+
 // MsSQLServerConn is a Microsoft SQL Server connection
 type MsSQLServerConn struct {
 	BaseConn
@@ -374,17 +378,17 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 					nRow[i] = strings.ReplaceAll(
 						val.(string), columnTerminator, delimiterRep,
 					)
+					// nRow[i] = strings.ReplaceAll(
+					// 	nRow[i].(string), `"`, quoteRep,
+					// )
+					// nRow[i] = strings.ReplaceAll(
+					// 	nRow[i].(string), "\r", carrRep,
+					// )
 					nRow[i] = strings.ReplaceAll(
-						nRow[i].(string), `"`, quoteRep,
-					)
-					nRow[i] = strings.ReplaceAll(
-						nRow[i].(string), "\r", carrRep,
-					)
-					nRow[i] = strings.ReplaceAll(
-						nRow[i].(string), "\n", newlRep,
+						nRow[i].(string), rowTerminator, newlRep,
 					)
 					if nRow[i].(string) != val.(string) {
-						panic(fmt.Sprintf("will not run update (col=%d)", i))
+						panic(fmt.Sprintf("will not run update (col=%d: %s<>%s)", i, nRow[i].(string), val.(string)))
 						postUpdateCol[i]++
 					}
 				}
@@ -575,6 +579,7 @@ func (conn *MsSQLServerConn) BcpImportFile(tableFName, filePath string) (count u
 		"-d", database,
 		// "-t" + columnTerminatorForBcp,
 		"-t", columnTerminatorForBcp,
+		"-r", rowTerminatorForBcp,
 		"-m", "1",
 		"-w",
 		"-q",
@@ -870,10 +875,11 @@ func writeCsvWithoutQuotes(path string, batch *iop.Batch, limit int) (cnt uint64
 
 	fields := batch.Columns.Names()
 
-	newLine := "\n"
-	if runtime.GOOS == "windows" {
-		newLine = "\r\n"
-	}
+	newLine := rowTerminator
+	// newLine := "\n"
+	// if runtime.GOOS == "windows" {
+	// 	newLine = "\r\n"
+	// }
 
 	// Write header
 	_, err = writer.Write([]byte(strings.Join(fields, columnTerminator) + newLine))
