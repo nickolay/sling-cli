@@ -21,9 +21,6 @@ import (
 	"github.com/spf13/cast"
 
 	"github.com/flarco/g"
-
-	"github.com/psanford/sqlite3vfs"
-	"github.com/psanford/sqlite3vfshttp"
 )
 
 // SQLiteConn is a SQLite connection
@@ -335,20 +332,7 @@ func (conn *SQLiteConn) setHttpURL() (err error) {
 		conn.SetProp("http_url", httpURL)
 	}
 
-	if httpURL != "" {
-		vfs := sqlite3vfshttp.HttpVFS{
-			URL: httpURL,
-			RoundTripper: &roundTripper{
-				referer:   os.Getenv("DBIO_APP"),
-				userAgent: os.Getenv("DBIO_APP"),
-			},
-		}
 
-		err = sqlite3vfs.RegisterVFS("httpvfs", &vfs)
-		if err != nil {
-			return g.Error(err, "register vfs err")
-		}
-	}
 
 	return nil
 }
