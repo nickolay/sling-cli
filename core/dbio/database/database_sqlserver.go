@@ -33,13 +33,13 @@ import (
 // var columnTerminatorForBcp = os.Getenv("TEST_CTBCP")
 // var columnTerminatorForSql = os.Getenv("TEST_CTSQL")
 
-var columnTerminator = "\x01"
-var columnTerminatorForBcp = "0x01"
+var columnTerminator = "\x03"
+var columnTerminatorForBcp = "0x03"
 var columnTerminatorForSql = "1/0"
 
 
-var rowTerminator = "\x02"
-var rowTerminatorForBcp = "0x02"
+var rowTerminator = "\x04"
+var rowTerminatorForBcp = "0x04"
 
 // MsSQLServerConn is a Microsoft SQL Server connection
 type MsSQLServerConn struct {
