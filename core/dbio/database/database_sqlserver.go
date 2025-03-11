@@ -367,8 +367,7 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 	transf := func(row []interface{}) (nRow []interface{}) {
 		nRow = row
 		for i, val := range row {
-
-			switch v := val.(type) {
+			switch v := val.(type) {  //XXX there's some kind of misdetection happening here? label.fieldid is sometimes empty string, sometimes NULL
 			case string:
 				// bcp loads empty string as NULL and a NUL char as an empty string.
 				// https://stackoverflow.com/questions/1644731
@@ -393,6 +392,9 @@ func (conn *MsSQLServerConn) BcpImportFileParrallel(tableFName string, ds *iop.D
 					}
 				}
 			default:
+				// if (i == 1) {
+				// 	panic(fmt.Sprintf("Unknown type: %T with value: %v\n", v, v))
+				// }
 				_ = v
 			}
 		}

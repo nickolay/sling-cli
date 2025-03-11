@@ -106,6 +106,7 @@ func (b *Batch) ColumnsChanged() bool {
 		}
 		for i := range b.Columns {
 			if b.Columns[i].Type != pB.Columns[i].Type {
+				g.Debug("column %d %s type changed %s->%s", i, b.Columns[i].Name, b.Columns[i].Type, pB.Columns[i].Type)
 				return true
 			} else if b.Columns[i].Name != pB.Columns[i].Name {
 				return true
